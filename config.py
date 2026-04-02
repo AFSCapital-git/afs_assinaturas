@@ -6,11 +6,13 @@ COLOR_RGB = (21, 62, 54)
 ADDRESS = "R. Arizona, 1426, cj 32, Cidade Monções, São Paulo – SP, 04567-003"
 
 # ── Empresas ──────────────────────────────────────────────────────────────────
-EMPRESAS = ["AFBR", "AFBR Investimentos"]
+EMPRESAS = ["AFBR", "AFBR Investimentos", "Guatã", "Amazonia Innovation Funding"]
 
 IMAGE_MAP: dict[str, Path] = {
     "AFBR": Path("imagens/afbr.png"),
     "AFBR Investimentos": Path("imagens/afbr_investimentos.png"),
+    "Guatã": Path("imagens/guata.png"),
+    "Amazonia Innovation Funding": Path("imagens/amazonia_innovation_funding.png"),
 }
 
 # ── Fontes ────────────────────────────────────────────────────────────────────
