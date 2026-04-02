@@ -51,6 +51,7 @@ with col_form:
         EMPRESAS,
         help="Selecione a empresa para usar o logo correspondente na assinatura.",
     )
+    telefone = telefone + "   |  +55 (11) 2189-0693" if empresa == "AFBR Investimentos" else telefone
 
     if nome:
         try:
