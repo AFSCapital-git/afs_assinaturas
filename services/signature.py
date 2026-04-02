@@ -23,6 +23,14 @@ def _b64(path: Path) -> str:
     return base64.b64encode(path.read_bytes()).decode("utf-8")
 
 
+def _escape_xml(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    )
+
+
 def _font_face_css() -> str:
     """Gera blocos @font-face com a fonte Elza embutida em base64."""
     css = ""
@@ -116,6 +124,145 @@ class SignatureHTML:
             h1, h2, h3 {{ color: {COLOR_HEX} !important; font-family: 'Elza', sans-serif !important; }}
         </style>
         """
+
+
+class SignatureSVG:
+    """Gera a assinatura como SVG vetorizado (texto vetorial + logo PNG embutido)."""
+
+    def __init__(self, nome: str, cargo: str, empresa: str, telefone: str = "") -> None:
+        self.nome = nome
+        self.cargo = cargo
+        self.empresa = empresa
+        self.telefone = telefone
+
+    def render(self) -> bytes:
+        W = LOGO_WIDTH_PX
+        pad_y = 14
+        gap = 4
+        gap_logo = 10
+        disc_gap = 2
+        color = COLOR_HEX
+
+        # Pillow usado apenas para medição de texto
+        font_bold = ImageFont.truetype(str(FONT_FILES["bold"]),    17)
+        font_reg  = ImageFont.truetype(str(FONT_FILES["regular"]), 13)
+        font_sm   = ImageFont.truetype(str(FONT_FILES["regular"]), 12)
+        font_disc = ImageFont.truetype(str(FONT_FILES["regular"]), 10)
+
+        dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+
+        def _th(text: str, font: ImageFont.FreeTypeFont) -> int:
+            bb = dummy.textbbox((0, 0), text, font=font)
+            return bb[3] - bb[1]
+
+        def _tw(text: str, font: ImageFont.FreeTypeFont) -> int:
+            bb = dummy.textbbox((0, 0), text, font=font)
+            return bb[2] - bb[0]
+
+        # Logo
+        logo_orig = Image.open(IMAGE_MAP[self.empresa])
+        logo_w = W
+        logo_h = int(logo_orig.height * logo_w / logo_orig.width)
+        logo_b64 = _b64(IMAGE_MAP[self.empresa])
+
+        # Calcular alturas
+        h_nome  = _th(self.nome,     font_bold)
+        h_cargo = _th(self.cargo,    font_reg)
+        h_tel   = _th(self.telefone, font_sm) if self.telefone else 0
+        h_addr  = _th(ADDRESS,       font_sm)
+
+        # Disclaimer
+        disclaimer_text = (
+            DISCLAIMER_INVESTIMENTOS if self.empresa == "AFBR Investimentos"
+            else DISCLAIMER_AMAZONIA  if self.empresa == "Amazonia Innovation Funding"
+            else None
+        )
+
+        disc_lines: list[str] = []
+        if disclaimer_text:
+            def _wrap(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
+                words = text.split()
+                lines: list[str] = []
+                current = ""
+                for word in words:
+                    candidate = (current + " " + word).strip()
+                    if _tw(candidate, font) <= max_w:
+                        current = candidate
+                    else:
+                        if current:
+                            lines.append(current)
+                        current = word
+                if current:
+                    lines.append(current)
+                return lines
+            disc_lines = _wrap(disclaimer_text, font_disc, W)
+
+        h_disc_line = _th("A", font_disc)
+        disc_total_h = (len(disc_lines) * (h_disc_line + disc_gap)) if disc_lines else 0
+
+        # Altura total
+        total_h = (pad_y
+                   + h_nome  + gap
+                   + h_cargo + gap
+                   + (h_tel + gap if self.telefone else 0)
+                   + h_addr  + gap_logo
+                   + logo_h
+                   + (gap_logo + disc_total_h if disc_lines else 0)
+                   + pad_y)
+
+        parts: list[str] = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"'
+            f' width="{W}" height="{total_h}" viewBox="0 0 {W} {total_h}">',
+            f'<defs><style>{_font_face_css()}</style></defs>',
+            f'<rect width="{W}" height="{total_h}" fill="white"/>',
+        ]
+
+        def _text(x: float, y: float, text: str, size: int, bold: bool = False, italic: bool = False) -> str:
+            weight = ' font-weight="700"' if bold else ''
+            style  = ' font-style="italic"' if italic else ''
+            return (
+                f'<text x="{round(x)}" y="{round(y)}" dominant-baseline="hanging"'
+                f' font-family="Elza, Arial, sans-serif" font-size="{size}"'
+                f'{weight}{style} fill="{color}">{_escape_xml(text)}</text>'
+            )
+
+        y = float(pad_y)
+        parts.append(_text(0, y, self.nome,  17, bold=True))
+        y += h_nome + gap
+        parts.append(_text(0, y, self.cargo, 13))
+        y += h_cargo + gap
+        if self.telefone:
+            parts.append(_text(0, y, self.telefone, 12))
+            y += h_tel + gap
+        parts.append(_text(0, y, ADDRESS, 12))
+        y += h_addr + gap_logo
+
+        parts.append(
+            f'<image x="0" y="{round(y)}" width="{logo_w}" height="{logo_h}"'
+            f' href="data:image/png;base64,{logo_b64}"'
+            f' xlink:href="data:image/png;base64,{logo_b64}"'
+            f' preserveAspectRatio="xMinYMin meet"/>'
+        )
+        y += logo_h
+
+        if disc_lines:
+            y += gap_logo
+            for i, line in enumerate(disc_lines):
+                is_last = i == len(disc_lines) - 1
+                words = line.split()
+                if not is_last and len(words) > 1:
+                    words_w = sum(_tw(w, font_disc) for w in words)
+                    space = (W - words_w) / (len(words) - 1)
+                    x = 0.0
+                    for word in words:
+                        parts.append(_text(x, y, word, 10, italic=True))
+                        x += _tw(word, font_disc) + space
+                else:
+                    parts.append(_text(0, y, line, 10, italic=True))
+                y += h_disc_line + disc_gap
+
+        parts.append("</svg>")
+        return "\n".join(parts).encode("utf-8")
 
 
 class SignatureImage:

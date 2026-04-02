@@ -1,7 +1,7 @@
 import streamlit as st
 
 from config import EMPRESAS
-from services.signature import SignatureHTML, SignatureImage
+from services.signature import SignatureHTML, SignatureImage, SignatureSVG
 from services.spreadsheet import buscar_dados_pessoa, carregar_pessoas
 
 st.set_page_config(
@@ -55,14 +55,14 @@ with col_form:
 
     if nome:
         try:
-            png = SignatureImage(nome, cargo, empresa, telefone).render()
+            svg = SignatureSVG(nome, cargo, empresa, telefone).render()
             empresa_slug = empresa.lower().replace(' ', '_')
-            filename = f"assinatura_{nome.lower().replace(' ', '_')}_{empresa_slug}.png"
+            filename = f"assinatura_{nome.lower().replace(' ', '_')}_{empresa_slug}.svg"
             st.download_button(
                 label="⬇️ Baixar imagem",
-                data=png,
+                data=svg,
                 file_name=filename,
-                mime="image/png",
+                mime="image/svg+xml",
                 type="primary",
                 use_container_width=True,
                 help="Baixa a imagem resultante e importe-a nas configurações de assinatura do seu e-mail.",
