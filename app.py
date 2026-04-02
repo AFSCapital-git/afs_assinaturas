@@ -34,7 +34,9 @@ with col_form:
         help="Selecione seu nome na lista ou digite para reescrever conforme sua preferência.",
     )
 
-    cargo = pessoas.get(nome, "") if nome in pessoas else ""
+    dados = pessoas.get(nome, {}) if nome in pessoas else {}
+    cargo = dados.get("cargo", "") if isinstance(dados, dict) else dados
+    telefone = dados.get("telefone", "") if isinstance(dados, dict) else ""
     st.text_input(
         "Cargo",
         value=cargo,
@@ -50,7 +52,7 @@ with col_form:
 
     if nome:
         try:
-            png = SignatureImage(nome, cargo, empresa).render()
+            png = SignatureImage(nome, cargo, empresa, telefone).render()
             filename = f"assinatura_{nome.lower().replace(' ', '_')}.png"
             st.download_button(
                 label="⬇️ Baixar imagem",
@@ -68,7 +70,7 @@ with col_preview:
     st.subheader("Prévia")
 
     if nome:
-        html = SignatureHTML(nome, cargo, empresa).render()
+        html = SignatureHTML(nome, cargo, empresa, telefone).render()
         st.html(html)
     else:
         st.info("Selecione ou digite um nome para visualizar a assinatura.")
