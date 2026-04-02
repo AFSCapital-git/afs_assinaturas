@@ -50,6 +50,18 @@ DISCLAIMER_INVESTIMENTOS = (
     "https://www.sejabtg.com/escritórios."
 )
 
+# ── Disclaimer Amazonia Innovation Funding ──────────────────────────────────────
+DISCLAIMER_AMAZONIA = (
+    "Esta mensagem, incluindo seus anexos, contém informações protegidas por lei, privilegiadas e/ou "
+    "confidenciais, não podendo ser retransmitida, arquivada, divulgada ou copiada sem a autorização "
+    "do remetente. Caso tenha recebido esta mensagem por engano, por favor informe ao remetente "
+    "respondendo imediatamente este e-mail e, em seguida, apague-a do seu computador. "
+    "This e-mail and attachments contain information protected by law, privileged and/or confidential, "
+    "and cannot be retransmitted, filed, divulged or copied without authorization from the sender. "
+    "If you have received this message by mistake, please inform the sender immediately by replying "
+    "to this e-mail. After that, please delete this e-mail from your computer."
+)
+
 # ── Imagem gerada ─────────────────────────────────────────────────────────────
 IMAGE_SCALE = 2       # fator de supersampling (2× → downscale para nitidez)
 LOGO_WIDTH_PX = 520   # largura final do logo em px (antes do scale)

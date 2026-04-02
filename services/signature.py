@@ -8,6 +8,7 @@ from config import (
     ADDRESS,
     COLOR_HEX,
     COLOR_RGB,
+    DISCLAIMER_AMAZONIA,
     DISCLAIMER_INVESTIMENTOS,
     FONT_FILES,
     IMAGE_MAP,
@@ -102,6 +103,7 @@ class SignatureHTML:
                 </td>
             </tr>
             {f'<tr><td style="padding-top: 10px; max-width: 520px;"><span class="disclaimer">{DISCLAIMER_INVESTIMENTOS}</span></td></tr>' if self.empresa == 'AFBR Investimentos' else ''}
+            {f'<tr><td style="padding-top: 10px; max-width: 520px;"><span class="disclaimer">{DISCLAIMER_AMAZONIA}</span></td></tr>' if self.empresa == 'Amazonia Innovation Funding' else ''}
         </table>
         """
 
@@ -172,7 +174,12 @@ class SignatureImage:
         img.paste(logo, (0, y), logo)
         y += logo_h
 
-        if self.empresa == "AFBR Investimentos":
+        disclaimer_text = (
+            DISCLAIMER_INVESTIMENTOS if self.empresa == "AFBR Investimentos"
+            else DISCLAIMER_AMAZONIA if self.empresa == "Amazonia Innovation Funding"
+            else None
+        )
+        if disclaimer_text:
             font_disc = ImageFont.truetype(str(FONT_FILES["regular"]), 10 * s)
 
             def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
@@ -192,7 +199,7 @@ class SignatureImage:
                     lines.append(current)
                 return lines
 
-            disc_lines = _wrap_text(DISCLAIMER_INVESTIMENTOS, font_disc, total_w)
+            disc_lines = _wrap_text(disclaimer_text, font_disc, total_w)
             h_disc_line = dummy.textbbox((0, 0), "A", font=font_disc)[3] - dummy.textbbox((0, 0), "A", font=font_disc)[1]
             disc_gap = 2 * s
             disc_total_h = len(disc_lines) * (h_disc_line + disc_gap)

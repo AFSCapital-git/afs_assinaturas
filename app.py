@@ -35,13 +35,15 @@ with col_form:
     )
 
     dados = buscar_dados_pessoa(nome, pessoas) if nome else {}
-    cargo = dados.get("cargo", "") if isinstance(dados, dict) else dados
+    cargo_default = dados.get("cargo", "") if isinstance(dados, dict) else dados
     telefone = "+55 " + dados.get("telefone", "") if isinstance(dados, dict) else ""
-    st.text_input(
+
+    is_alex = nome and nome.strip().lower() == "alex taira"
+    cargo = st.text_input(
         "Cargo",
-        value=cargo,
-        disabled=True,
-        help="Preenchido automaticamente com base na planilha. Entre em contato com o responsável para solicitar alterações.",
+        value=cargo_default,
+        disabled=not is_alex,
+        help="Cargo editável." if is_alex else "Preenchido automaticamente com base na planilha. Entre em contato com o responsável para solicitar alterações.",
     )
 
     empresa = st.selectbox(
