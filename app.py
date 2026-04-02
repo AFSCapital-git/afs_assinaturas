@@ -53,7 +53,8 @@ with col_form:
     if nome:
         try:
             png = SignatureImage(nome, cargo, empresa, telefone).render()
-            filename = f"assinatura_{nome.lower().replace(' ', '_')}.png"
+            empresa_slug = empresa.lower().replace(' ', '_')
+            filename = f"assinatura_{nome.lower().replace(' ', '_')}_{empresa_slug}.png"
             st.download_button(
                 label="⬇️ Baixar imagem",
                 data=png,
