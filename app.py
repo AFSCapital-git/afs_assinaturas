@@ -2,7 +2,7 @@ import streamlit as st
 
 from config import EMPRESAS
 from services.signature import SignatureHTML, SignatureImage
-from services.spreadsheet import carregar_pessoas
+from services.spreadsheet import buscar_dados_pessoa, carregar_pessoas
 
 st.set_page_config(
     page_title="Gerador de Assinatura – AFBR",
@@ -34,7 +34,7 @@ with col_form:
         help="Selecione seu nome na lista ou digite para reescrever conforme sua preferência.",
     )
 
-    dados = pessoas.get(nome, {}) if nome in pessoas else {}
+    dados = buscar_dados_pessoa(nome, pessoas) if nome else {}
     cargo = dados.get("cargo", "") if isinstance(dados, dict) else dados
     telefone = dados.get("telefone", "") if isinstance(dados, dict) else ""
     st.text_input(
