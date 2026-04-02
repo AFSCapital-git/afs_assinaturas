@@ -81,7 +81,7 @@ class SignatureHTML:
 
         return f"""
         {style}
-        <table class="assinatura" cellpadding="0" cellspacing="0" border="0">
+        <table class="assinatura" cellpadding="0" cellspacing="0" border="0" width="676" style="width: 676px;">
             <tr>
                 <td style="padding-bottom: 2px;">
                     <table cellpadding="0" cellspacing="0" border="0">
@@ -96,14 +96,14 @@ class SignatureHTML:
                 <td style="padding-top: 8px; padding-left: 0; padding-right: 0;">
                     <img
                         src="data:image/png;base64,{img_b64}"
-                        width="520"
+                        width="676"
                         alt="{self.empresa}"
-                        style="display: block; margin: 0; max-width: 100%;"
+                        style="display: block; margin: 0; width: 676px; height: auto; min-width: 676px;"
                     />
                 </td>
             </tr>
-            {f'<tr><td style="padding-top: 10px; max-width: 520px;"><span class="disclaimer">{DISCLAIMER_INVESTIMENTOS}</span></td></tr>' if self.empresa == 'AFBR Investimentos' else ''}
-            {f'<tr><td style="padding-top: 10px; max-width: 520px;"><span class="disclaimer">{DISCLAIMER_AMAZONIA}</span></td></tr>' if self.empresa == 'Amazonia Innovation Funding' else ''}
+            {f'<tr><td style="padding-top: 10px; width: 676px; text-align: justify;"><span class="disclaimer">{DISCLAIMER_INVESTIMENTOS}</span></td></tr>' if self.empresa == 'AFBR Investimentos' else ''}
+            {f'<tr><td style="padding-top: 10px; width: 676px; text-align: justify;"><span class="disclaimer">{DISCLAIMER_AMAZONIA}</span></td></tr>' if self.empresa == 'Amazonia Innovation Funding' else ''}
         </table>
         """
 
@@ -209,8 +209,23 @@ class SignatureImage:
             img_ext.paste(img, (0, 0))
             draw_ext = ImageDraw.Draw(img_ext)
             y += gap_logo
-            for line in disc_lines:
-                draw_ext.text((0, y), line, font=font_disc, fill=COLOR_RGB)
+            for i, line in enumerate(disc_lines):
+                is_last = i == len(disc_lines) - 1
+                words = line.split()
+                if not is_last and len(words) > 1:
+                    words_w = sum(
+                        dummy.textbbox((0, 0), w, font=font_disc)[2] - dummy.textbbox((0, 0), w, font=font_disc)[0]
+                        for w in words
+                    )
+                    space_total = total_w - words_w
+                    gap_between = space_total / (len(words) - 1)
+                    x = 0.0
+                    for j, word in enumerate(words):
+                        draw_ext.text((round(x), y), word, font=font_disc, fill=COLOR_RGB)
+                        w_bbox = dummy.textbbox((0, 0), word, font=font_disc)
+                        x += (w_bbox[2] - w_bbox[0]) + gap_between
+                else:
+                    draw_ext.text((0, y), line, font=font_disc, fill=COLOR_RGB)
                 y += h_disc_line + disc_gap
             img_ext = img_ext.resize((total_w // s, new_h // s), Image.LANCZOS)
             buf = io.BytesIO()
