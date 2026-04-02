@@ -36,7 +36,7 @@ with col_form:
 
     dados = buscar_dados_pessoa(nome, pessoas) if nome else {}
     cargo = dados.get("cargo", "") if isinstance(dados, dict) else dados
-    telefone = dados.get("telefone", "") if isinstance(dados, dict) else ""
+    telefone = "+55 " + dados.get("telefone", "") if isinstance(dados, dict) else ""
     st.text_input(
         "Cargo",
         value=cargo,
