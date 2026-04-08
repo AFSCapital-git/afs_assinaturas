@@ -2,7 +2,7 @@ import base64
 import io
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from config import (
     ADDRESS,
@@ -12,8 +12,6 @@ from config import (
     DISCLAIMER_INVESTIMENTOS,
     FONT_FILES,
     IMAGE_MAP,
-    IMAGE_SCALE,
-    LOGO_WIDTH_PX,
 )
 
 
@@ -21,14 +19,6 @@ from config import (
 
 def _b64(path: Path) -> str:
     return base64.b64encode(path.read_bytes()).decode("utf-8")
-
-
-def _escape_xml(text: str) -> str:
-    return (
-        text.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-    )
 
 
 def _font_face_css() -> str:
@@ -126,145 +116,6 @@ class SignatureHTML:
         """
 
 
-class SignatureSVG:
-    """Gera a assinatura como SVG vetorizado (texto vetorial + logo PNG embutido)."""
-
-    def __init__(self, nome: str, cargo: str, empresa: str, telefone: str = "") -> None:
-        self.nome = nome
-        self.cargo = cargo
-        self.empresa = empresa
-        self.telefone = telefone
-
-    def render(self) -> bytes:
-        W = LOGO_WIDTH_PX
-        pad_y = 14
-        gap = 4
-        gap_logo = 10
-        disc_gap = 2
-        color = COLOR_HEX
-
-        # Pillow usado apenas para medição de texto
-        font_bold = ImageFont.truetype(str(FONT_FILES["bold"]),    17)
-        font_reg  = ImageFont.truetype(str(FONT_FILES["regular"]), 13)
-        font_sm   = ImageFont.truetype(str(FONT_FILES["regular"]), 12)
-        font_disc = ImageFont.truetype(str(FONT_FILES["regular"]), 10)
-
-        dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-
-        def _th(text: str, font: ImageFont.FreeTypeFont) -> int:
-            bb = dummy.textbbox((0, 0), text, font=font)
-            return bb[3] - bb[1]
-
-        def _tw(text: str, font: ImageFont.FreeTypeFont) -> int:
-            bb = dummy.textbbox((0, 0), text, font=font)
-            return bb[2] - bb[0]
-
-        # Logo
-        logo_orig = Image.open(IMAGE_MAP[self.empresa])
-        logo_w = W
-        logo_h = int(logo_orig.height * logo_w / logo_orig.width)
-        logo_b64 = _b64(IMAGE_MAP[self.empresa])
-
-        # Calcular alturas
-        h_nome  = _th(self.nome,     font_bold)
-        h_cargo = _th(self.cargo,    font_reg)
-        h_tel   = _th(self.telefone, font_sm) if self.telefone else 0
-        h_addr  = _th(ADDRESS,       font_sm)
-
-        # Disclaimer
-        disclaimer_text = (
-            DISCLAIMER_INVESTIMENTOS if self.empresa == "AFBR Investimentos"
-            else DISCLAIMER_AMAZONIA  if self.empresa == "Amazonia Innovation Funding"
-            else None
-        )
-
-        disc_lines: list[str] = []
-        if disclaimer_text:
-            def _wrap(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
-                words = text.split()
-                lines: list[str] = []
-                current = ""
-                for word in words:
-                    candidate = (current + " " + word).strip()
-                    if _tw(candidate, font) <= max_w:
-                        current = candidate
-                    else:
-                        if current:
-                            lines.append(current)
-                        current = word
-                if current:
-                    lines.append(current)
-                return lines
-            disc_lines = _wrap(disclaimer_text, font_disc, W)
-
-        h_disc_line = _th("A", font_disc)
-        disc_total_h = (len(disc_lines) * (h_disc_line + disc_gap)) if disc_lines else 0
-
-        # Altura total
-        total_h = (pad_y
-                   + h_nome  + gap
-                   + h_cargo + gap
-                   + (h_tel + gap if self.telefone else 0)
-                   + h_addr  + gap_logo
-                   + logo_h
-                   + (gap_logo + disc_total_h if disc_lines else 0)
-                   + pad_y)
-
-        parts: list[str] = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"'
-            f' width="{W}" height="{total_h}" viewBox="0 0 {W} {total_h}">',
-            f'<defs><style>{_font_face_css()}</style></defs>',
-            f'<rect width="{W}" height="{total_h}" fill="white"/>',
-        ]
-
-        def _text(x: float, y: float, text: str, size: int, bold: bool = False, italic: bool = False) -> str:
-            weight = ' font-weight="700"' if bold else ''
-            style  = ' font-style="italic"' if italic else ''
-            return (
-                f'<text x="{round(x)}" y="{round(y)}" dominant-baseline="hanging"'
-                f' font-family="Elza, Arial, sans-serif" font-size="{size}"'
-                f'{weight}{style} fill="{color}">{_escape_xml(text)}</text>'
-            )
-
-        y = float(pad_y)
-        parts.append(_text(0, y, self.nome,  17, bold=True))
-        y += h_nome + gap
-        parts.append(_text(0, y, self.cargo, 13))
-        y += h_cargo + gap
-        if self.telefone:
-            parts.append(_text(0, y, self.telefone, 12))
-            y += h_tel + gap
-        parts.append(_text(0, y, ADDRESS, 12))
-        y += h_addr + gap_logo
-
-        parts.append(
-            f'<image x="0" y="{round(y)}" width="{logo_w}" height="{logo_h}"'
-            f' href="data:image/png;base64,{logo_b64}"'
-            f' xlink:href="data:image/png;base64,{logo_b64}"'
-            f' preserveAspectRatio="xMinYMin meet"/>'
-        )
-        y += logo_h
-
-        if disc_lines:
-            y += gap_logo
-            for i, line in enumerate(disc_lines):
-                is_last = i == len(disc_lines) - 1
-                words = line.split()
-                if not is_last and len(words) > 1:
-                    words_w = sum(_tw(w, font_disc) for w in words)
-                    space = (W - words_w) / (len(words) - 1)
-                    x = 0.0
-                    for word in words:
-                        parts.append(_text(x, y, word, 10, italic=True))
-                        x += _tw(word, font_disc) + space
-                else:
-                    parts.append(_text(0, y, line, 10, italic=True))
-                y += h_disc_line + disc_gap
-
-        parts.append("</svg>")
-        return "\n".join(parts).encode("utf-8")
-
-
 class SignatureImage:
     """Gera a assinatura como imagem PNG via Pillow."""
 
@@ -275,68 +126,92 @@ class SignatureImage:
         self.telefone = telefone
 
     def render(self) -> bytes:
-        s = IMAGE_SCALE
-        pad_y = 14 * s
+        # ── Constantes ────────────────────────────────────────────────────────
+        # RETINA_SCALE: imagem final a 2× pixels para nitidez em telas HiDPI
+        # SS: supersampling do texto *dentro* do espaço 2×  → total 8× native
+        RETINA_SCALE = 2
+        SS           = 4
+        GAP          = 3    # px lógicos (1×)
+        GAP_LOGO     = 10   # px lógicos (1×)
+        PAD_Y        = 14   # px lógicos (1×)
 
-        font_bold = ImageFont.truetype(str(FONT_FILES["bold"]), 17 * s)
-        font_reg  = ImageFont.truetype(str(FONT_FILES["regular"]), 13 * s)
-        font_sm   = ImageFont.truetype(str(FONT_FILES["regular"]), 12 * s)
-
+        # ── Logo a 2× resolução nativa ────────────────────────────────────────
         logo_orig = Image.open(IMAGE_MAP[self.empresa]).convert("RGBA")
-        logo_w = LOGO_WIDTH_PX * s
-        logo_h = int(logo_orig.height * logo_w / logo_orig.width)
-        logo = logo_orig.resize((logo_w, logo_h), Image.LANCZOS)
+        W2        = logo_orig.width  * RETINA_SCALE   # largura do PNG final
+        H2_logo   = logo_orig.height * RETINA_SCALE
+        logo      = logo_orig.resize((W2, H2_logo), Image.LANCZOS)
 
+        # ── Helpers de medição e downscale (espaço hi-res → espaço 2×) ────────
         dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+        W_hi  = W2 * SS    # canvas de texto: 8× a largura nativa
 
         def _th(text: str, font: ImageFont.FreeTypeFont) -> int:
             bb = dummy.textbbox((0, 0), text, font=font)
             return bb[3] - bb[1]
 
-        h_nome  = _th(self.nome, font_bold)
-        h_cargo = _th(self.cargo, font_reg)
+        def _tw(text: str, font: ImageFont.FreeTypeFont) -> int:
+            bb = dummy.textbbox((0, 0), text, font=font)
+            return bb[2] - bb[0]
+
+        def _downscale(canvas: Image.Image) -> Image.Image:
+            """Reduz canvas 8×-hi-res para o espaço 2× (÷SS) com nitidez máxima."""
+            out_h   = round(canvas.height / SS)
+            reduced = canvas.resize((W2, out_h), Image.LANCZOS)
+            return reduced.filter(ImageFilter.UnsharpMask(radius=1.2, percent=220, threshold=0))
+
+        # ── Fontes: 2× (retina) × SS (supersampling) = 8× native ─────────────
+        FS        = RETINA_SCALE * SS
+        font_bold = ImageFont.truetype(str(FONT_FILES["bold"]),    17 * FS)
+        font_reg  = ImageFont.truetype(str(FONT_FILES["regular"]), 13 * FS)
+        font_sm   = ImageFont.truetype(str(FONT_FILES["regular"]), 12 * FS)
+
+        # ── Medições no espaço hi-res (8×) ──────────────────────────────────
+        pad_y_hi = PAD_Y * FS
+        gap_hi   = GAP   * FS
+
+        h_nome  = _th(self.nome,     font_bold)
+        h_cargo = _th(self.cargo,    font_reg)
         h_tel   = _th(self.telefone, font_sm) if self.telefone else 0
-        h_addr  = _th(ADDRESS, font_sm)
+        h_addr  = _th(ADDRESS,       font_sm)
 
-        gap      = 3 * s
-        gap_logo = 10 * s
+        tel_h_hi  = (h_tel + gap_hi) if self.telefone else 0
+        text_h_hi = pad_y_hi + h_nome + gap_hi + h_cargo + gap_hi + tel_h_hi + h_addr + (pad_y_hi // 2)
 
-        tel_height = (h_tel + gap) if self.telefone else 0
-        total_w = logo_w
-        total_h = pad_y + h_nome + gap + h_cargo + gap + tel_height + h_addr + gap_logo + logo_h + pad_y
+        # ── Canvas hi-res do bloco de texto ───────────────────────────────────
+        txt_canvas = Image.new("RGBA", (W_hi, text_h_hi), (255, 255, 255, 255))
+        draw       = ImageDraw.Draw(txt_canvas)
 
-        img  = Image.new("RGBA", (total_w, total_h), (255, 255, 255, 255))
-        draw = ImageDraw.Draw(img)
-
-        y = pad_y
+        y = pad_y_hi
         draw.text((0, y), self.nome,  font=font_bold, fill=COLOR_RGB)
-        y += h_nome + gap
+        y += h_nome + gap_hi
         draw.text((0, y), self.cargo, font=font_reg,  fill=COLOR_RGB)
-        y += h_cargo + gap
+        y += h_cargo + gap_hi
         if self.telefone:
             draw.text((0, y), self.telefone, font=font_sm, fill=COLOR_RGB)
-            y += h_tel + gap
-        draw.text((0, y), ADDRESS,    font=font_sm,   fill=COLOR_RGB)
-        y += h_addr + gap_logo
-        img.paste(logo, (0, y), logo)
-        y += logo_h
+            y += h_tel + gap_hi
+        draw.text((0, y), ADDRESS, font=font_sm, fill=COLOR_RGB)
 
+        # ── Downscale do bloco de texto para espaço 2× ──────────────────────
+        txt_lo = _downscale(txt_canvas)
+
+        # ── Bloco de disclaimer (se houver) ───────────────────────────────────
         disclaimer_text = (
             DISCLAIMER_INVESTIMENTOS if self.empresa == "AFBR Investimentos"
-            else DISCLAIMER_AMAZONIA if self.empresa == "Amazonia Innovation Funding"
+            else DISCLAIMER_AMAZONIA  if self.empresa == "Amazonia Innovation Funding"
             else None
         )
-        if disclaimer_text:
-            font_disc = ImageFont.truetype(str(FONT_FILES["regular"]), 10 * s)
 
-            def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
-                words = text.split()
-                lines: list[str] = []
-                current = ""
+        disc_lo: Image.Image | None = None
+        if disclaimer_text:
+            font_disc    = ImageFont.truetype(str(FONT_FILES["regular"]), 10 * FS)
+            disc_gap_hi  = 2 * FS
+            disc_top_hi  = GAP_LOGO * FS
+
+            def _wrap(text: str, max_w: int) -> list[str]:
+                words, lines, current = text.split(), [], ""
                 for word in words:
                     candidate = (current + " " + word).strip()
-                    bb = dummy.textbbox((0, 0), candidate, font=font)
-                    if bb[2] - bb[0] <= max_w:
+                    if _tw(candidate, font_disc) <= max_w:
                         current = candidate
                     else:
                         if current:
@@ -346,40 +221,44 @@ class SignatureImage:
                     lines.append(current)
                 return lines
 
-            disc_lines = _wrap_text(disclaimer_text, font_disc, total_w)
-            h_disc_line = dummy.textbbox((0, 0), "A", font=font_disc)[3] - dummy.textbbox((0, 0), "A", font=font_disc)[1]
-            disc_gap = 2 * s
-            disc_total_h = len(disc_lines) * (h_disc_line + disc_gap)
+            disc_lines  = _wrap(disclaimer_text, W_hi)   # wrap no espaço 8×
+            h_line      = _th("A", font_disc)
+            disc_h_hi   = disc_top_hi + len(disc_lines) * (h_line + disc_gap_hi) + (pad_y_hi // 2)
 
-            new_h = y + gap_logo + disc_total_h + pad_y
-            img_ext = Image.new("RGBA", (total_w, new_h), (255, 255, 255, 255))
-            img_ext.paste(img, (0, 0))
-            draw_ext = ImageDraw.Draw(img_ext)
-            y += gap_logo
+            disc_canvas  = Image.new("RGBA", (W_hi, disc_h_hi), (255, 255, 255, 255))
+            draw_d       = ImageDraw.Draw(disc_canvas)
+            y_d          = disc_top_hi
+
             for i, line in enumerate(disc_lines):
                 is_last = i == len(disc_lines) - 1
-                words = line.split()
+                words   = line.split()
                 if not is_last and len(words) > 1:
-                    words_w = sum(
-                        dummy.textbbox((0, 0), w, font=font_disc)[2] - dummy.textbbox((0, 0), w, font=font_disc)[0]
-                        for w in words
-                    )
-                    space_total = total_w - words_w
-                    gap_between = space_total / (len(words) - 1)
-                    x = 0.0
-                    for j, word in enumerate(words):
-                        draw_ext.text((round(x), y), word, font=font_disc, fill=COLOR_RGB)
-                        w_bbox = dummy.textbbox((0, 0), word, font=font_disc)
-                        x += (w_bbox[2] - w_bbox[0]) + gap_between
+                    words_w   = sum(_tw(w, font_disc) for w in words)
+                    gap_space = (W_hi - words_w) / (len(words) - 1)
+                    x         = 0.0
+                    for word in words:
+                        draw_d.text((round(x), y_d), word, font=font_disc, fill=COLOR_RGB)
+                        x += _tw(word, font_disc) + gap_space
                 else:
-                    draw_ext.text((0, y), line, font=font_disc, fill=COLOR_RGB)
-                y += h_disc_line + disc_gap
-            img_ext = img_ext.resize((total_w // s, new_h // s), Image.LANCZOS)
-            buf = io.BytesIO()
-            img_ext.save(buf, format="PNG")
-            return buf.getvalue()
+                    draw_d.text((0, y_d), line, font=font_disc, fill=COLOR_RGB)
+                y_d += h_line + disc_gap_hi
 
-        img = img.resize((total_w // s, total_h // s), Image.LANCZOS)
+            disc_lo = _downscale(disc_canvas)
+
+        # ── Composição final (espaço 2×) ──────────────────────────────────────
+        gap_logo_2x = GAP_LOGO * RETINA_SCALE
+        disc_h      = disc_lo.height if disc_lo else 0
+        total_h     = txt_lo.height + gap_logo_2x + logo.height + disc_h
+
+        final = Image.new("RGBA", (W2, total_h), (255, 255, 255, 255))
+        final.paste(txt_lo, (0, 0))
+        y_f = txt_lo.height + gap_logo_2x
+        final.paste(logo, (0, y_f), logo)
+        if disc_lo:
+            y_f += logo.height
+            final.paste(disc_lo, (0, y_f), disc_lo)
+
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        # DPI=144 → clientes de e-mail exibem em tamanho lógico correto (72 dpi * 2×)
+        final.convert("RGB").save(buf, format="PNG", dpi=(144, 144))
         return buf.getvalue()

@@ -63,5 +63,5 @@ DISCLAIMER_AMAZONIA = (
 )
 
 # ── Imagem gerada ─────────────────────────────────────────────────────────────
-IMAGE_SCALE = 1       # fator de supersampling (3× → downscale para nitidez)
+IMAGE_SCALE = 3       # fator de supersampling (3x -> downscale para melhor nitidez)
 LOGO_WIDTH_PX = 520   # largura final do logo em px (antes do scale)
