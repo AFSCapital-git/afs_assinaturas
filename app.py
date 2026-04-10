@@ -122,8 +122,28 @@ with col_preview:
                 onclick="selectSignatureContent()"
                 style="background:#153e36; color:#fff; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:13px; font-family:Arial, sans-serif;"
             >
-                Selecionar assinatura (imagem + disclaimer)
+                Selecionar assinatura
             </button>
+        </div>
+
+        <div
+            id="copy-toast"
+            style="
+                display:none;
+                position:fixed;
+                top:14px;
+                right:14px;
+                z-index:9999;
+                background:#153e36;
+                color:#ffffff;
+                border-radius:10px;
+                padding:10px 12px;
+                box-shadow:0 8px 20px rgba(0,0,0,0.18);
+                font-size:12px;
+                font-family:Arial, sans-serif;
+            "
+        >
+            Assinatura selecionada. Agora copie o conteúdo.
         </div>
 
         <div id="signature-selection-block" style="max-width:100%;">
@@ -132,6 +152,19 @@ with col_preview:
         </div>
 
         <script>
+            let toastTimer = null;
+
+            function showCopyToast() {{
+                const toast = document.getElementById('copy-toast');
+                if (!toast) return;
+
+                toast.style.display = 'block';
+                if (toastTimer) clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {{
+                    toast.style.display = 'none';
+                }}, 5000);
+            }}
+
             function selectSignatureContent() {{
                 const el = document.getElementById('signature-selection-block');
                 if (!el) return;
@@ -141,6 +174,7 @@ with col_preview:
                 range.selectNodeContents(el);
                 selection.removeAllRanges();
                 selection.addRange(range);
+                showCopyToast();
             }}
         </script>
         """
