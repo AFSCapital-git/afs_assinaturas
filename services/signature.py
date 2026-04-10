@@ -73,7 +73,7 @@ class SignatureHTML:
             .cargo   {{ font-size: 13px; font-weight: 400; color: {COLOR_HEX}; font-family: 'Elza', Arial, sans-serif; }}
             .telefone{{ font-size: 12px; font-weight: 400; color: {COLOR_HEX}; font-family: 'Elza', Arial, sans-serif; }}
             .endereco{{ font-size: 12px; font-weight: 400; color: {COLOR_HEX}; font-family: 'Elza', Arial, sans-serif; }}
-            .disclaimer{{ font-size: 10px; font-weight: 400; font-style: italic; color: {COLOR_HEX}; font-family: 'Elza', Arial, sans-serif; line-height: 1.4; }}
+            .disclaimer{{ font-size: 10px; font-weight: 400; font-style: italic; color: {COLOR_HEX}; font-family: Calibri, Arial, sans-serif; line-height: 1.4; }}
         </style>
         """
 
@@ -194,71 +194,19 @@ class SignatureImage:
         # ── Downscale do bloco de texto para espaço 2× ──────────────────────
         txt_lo = _downscale(txt_canvas)
 
-        # ── Bloco de disclaimer (se houver) ───────────────────────────────────
-        disclaimer_text = (
-            DISCLAIMER_INVESTIMENTOS if self.empresa == "AFBR Investimentos"
-            else DISCLAIMER_AMAZONIA  if self.empresa == "Amazonia Innovation Funding"
-            else None
-        )
-
-        disc_lo: Image.Image | None = None
-        if disclaimer_text:
-            font_disc    = ImageFont.truetype(str(FONT_FILES["regular"]), 10 * FS)
-            disc_gap_hi  = 2 * FS
-            disc_top_hi  = GAP_LOGO * FS
-
-            def _wrap(text: str, max_w: int) -> list[str]:
-                words, lines, current = text.split(), [], ""
-                for word in words:
-                    candidate = (current + " " + word).strip()
-                    if _tw(candidate, font_disc) <= max_w:
-                        current = candidate
-                    else:
-                        if current:
-                            lines.append(current)
-                        current = word
-                if current:
-                    lines.append(current)
-                return lines
-
-            disc_lines  = _wrap(disclaimer_text, W_hi)   # wrap no espaço 8×
-            h_line      = _th("A", font_disc)
-            disc_h_hi   = disc_top_hi + len(disc_lines) * (h_line + disc_gap_hi) + (pad_y_hi // 2)
-
-            disc_canvas  = Image.new("RGBA", (W_hi, disc_h_hi), (255, 255, 255, 255))
-            draw_d       = ImageDraw.Draw(disc_canvas)
-            y_d          = disc_top_hi
-
-            for i, line in enumerate(disc_lines):
-                is_last = i == len(disc_lines) - 1
-                words   = line.split()
-                if not is_last and len(words) > 1:
-                    words_w   = sum(_tw(w, font_disc) for w in words)
-                    gap_space = (W_hi - words_w) / (len(words) - 1)
-                    x         = 0.0
-                    for word in words:
-                        draw_d.text((round(x), y_d), word, font=font_disc, fill=COLOR_RGB)
-                        x += _tw(word, font_disc) + gap_space
-                else:
-                    draw_d.text((0, y_d), line, font=font_disc, fill=COLOR_RGB)
-                y_d += h_line + disc_gap_hi
-
-            disc_lo = _downscale(disc_canvas)
-
         # ── Composição final (espaço 2×) ──────────────────────────────────────
         gap_logo_2x = GAP_LOGO * RETINA_SCALE
-        disc_h      = disc_lo.height if disc_lo else 0
-        total_h     = txt_lo.height + gap_logo_2x + logo.height + disc_h
+        total_h     = txt_lo.height + gap_logo_2x + logo.height
 
         final = Image.new("RGBA", (W2, total_h), (255, 255, 255, 255))
         final.paste(txt_lo, (0, 0))
         y_f = txt_lo.height + gap_logo_2x
         final.paste(logo, (0, y_f), logo)
-        if disc_lo:
-            y_f += logo.height
-            final.paste(disc_lo, (0, y_f), disc_lo)
+
+        # Entrega final em 50% da largura/altura atual, mantendo proporção.
+        final = final.resize((final.width // 2, final.height // 2), Image.LANCZOS)
 
         buf = io.BytesIO()
-        # DPI=144 → clientes de e-mail exibem em tamanho lógico correto (72 dpi * 2×)
-        final.convert("RGB").save(buf, format="PNG", dpi=(144, 144))
+        # DPI=72 para manter o tamanho lógico esperado após reduzir a imagem pela metade.
+        final.convert("RGB").save(buf, format="PNG", dpi=(72, 72))
         return buf.getvalue()

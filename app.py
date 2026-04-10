@@ -1,12 +1,33 @@
 import base64
 import io
+import re
 
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image as PILImage
 
-from config import EMPRESAS
+from config import DISCLAIMER_AMAZONIA, DISCLAIMER_INVESTIMENTOS, EMPRESAS
 from services.signature import SignatureHTML, SignatureImage
 from services.spreadsheet import buscar_dados_pessoa, carregar_pessoas
+
+
+URL_PATTERN = re.compile(r'https?://[^\s<>")]+')
+
+
+def _linkify_text(text: str) -> str:
+    """Converte URLs em links HTML clicáveis mantendo pontuação final."""
+
+    def _repl(match: re.Match[str]) -> str:
+        raw_url = match.group(0)
+        clean_url = raw_url.rstrip(".,;)")
+        suffix = raw_url[len(clean_url):]
+        return (
+            f'<a href="{clean_url}" target="_blank" rel="noopener noreferrer">'
+            f"{clean_url}"
+            f"</a>{suffix}"
+        )
+
+    return URL_PATTERN.sub(_repl, text)
 
 st.set_page_config(
     page_title="Gerador de Assinatura – AFBR",
@@ -64,17 +85,6 @@ with col_form:
             png = SignatureImage(nome, cargo, empresa, telefone).render()
             with PILImage.open(io.BytesIO(png)) as preview_img:
                 png_size = preview_img.size
-            empresa_slug = empresa.lower().replace(' ', '_')
-            filename = f"assinatura_{nome.lower().replace(' ', '_')}_{empresa_slug}.png"
-            st.download_button(
-                label="⬇️ Baixar imagem",
-                data=png,
-                file_name=filename,
-                mime="image/png",
-                type="primary",
-                use_container_width=True,
-                help="Baixa a imagem resultante e importe-a nas configurações de assinatura do seu e-mail.",
-            )
         except Exception as e:
             st.error(f"Não foi possível gerar a imagem: {e}")
 
@@ -82,16 +92,61 @@ with col_preview:
     st.subheader("Prévia")
 
     if nome and png and png_size:
-        # Imagem gerada a 2× — exibe na largura lógica (÷2) para aparecer nítida em Retina.
-        # Usa <img> via markdown para evitar recompressão JPEG do st.image.
-        logical_w = png_size[0] // 2
+        # Exibe um bloco único com imagem + disclaimer para facilitar a seleção completa.
+        logical_w = png_size[0]
         st.caption(f"Resolução: {png_size[0]}×{png_size[1]} px")
         img_b64 = base64.b64encode(png).decode("utf-8")
-        st.markdown(
-            f'<img src="data:image/png;base64,{img_b64}"'
-            f' style="width:{logical_w}px; max-width:100%; display:block;" />',
-            unsafe_allow_html=True,
+
+        disclaimer_text = (
+            DISCLAIMER_INVESTIMENTOS if empresa == "AFBR Investimentos"
+            else DISCLAIMER_AMAZONIA if empresa == "Amazonia Innovation Funding"
+            else None
         )
+        disclaimer_html = _linkify_text(disclaimer_text) if disclaimer_text else ""
+
+        disclaimer_section = ""
+        if disclaimer_html:
+            disclaimer_section = (
+                '<div style="margin-top:10px; font-size:10px; line-height:1.4; '
+                'font-style:italic; font-family:Calibri, Arial, sans-serif; color:#153e36; '
+                'text-align:justify;">'
+                '<br />'
+                f"{disclaimer_html}"
+                "</div>"
+            )
+
+        signature_html = f"""
+        <div style="margin-bottom:8px;">
+            <button
+                type="button"
+                onclick="selectSignatureContent()"
+                style="background:#153e36; color:#fff; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:13px; font-family:Arial, sans-serif;"
+            >
+                Selecionar assinatura (imagem + disclaimer)
+            </button>
+        </div>
+
+        <div id="signature-selection-block" style="max-width:100%;">
+            <img src="data:image/png;base64,{img_b64}" style="width:{logical_w}px; max-width:100%; display:block;" />
+            {disclaimer_section}
+        </div>
+
+        <script>
+            function selectSignatureContent() {{
+                const el = document.getElementById('signature-selection-block');
+                if (!el) return;
+
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }}
+        </script>
+        """
+
+        preview_height = 720 if disclaimer_html else 300
+        components.html(signature_html, height=preview_height, scrolling=True)
     else:
         st.info("Selecione ou digite um nome para visualizar a assinatura.")
 
