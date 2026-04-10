@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image as PILImage
 
-from config import DISCLAIMER_AMAZONIA, DISCLAIMER_INVESTIMENTOS, EMPRESAS
+from config import ADDRESS, DISCLAIMER_AMAZONIA, DISCLAIMER_INVESTIMENTOS, EMPRESAS
 from services.signature import SignatureHTML, SignatureImage
 from services.spreadsheet import buscar_dados_pessoa, carregar_pessoas
 
@@ -115,66 +115,51 @@ with col_preview:
                 "</div>"
             )
 
+        tel_html = (
+            f'<div style="margin-bottom:2px; font-size:12px; font-weight:400; '
+            f'font-family:Arial,sans-serif; color:#153e36; line-height:1.2;">{telefone}</div>'
+        ) if telefone else ""
+
+        toast_style = (
+            "display:none; position:fixed; top:14px; right:14px; z-index:9999; "
+            "background:#153e36; color:#ffffff; border-radius:10px; padding:10px 12px; "
+            "box-shadow:0 8px 20px rgba(0,0,0,0.18); font-size:12px; font-family:Arial,sans-serif;"
+        )
+
         signature_html = f"""
+        <div id="copy-toast" style="{toast_style}">Assinatura selecionada. Agora copie o conteúdo.</div>
+
         <div style="margin-bottom:8px;">
-            <button
-                type="button"
-                onclick="selectSignatureContent()"
-                style="background:#153e36; color:#fff; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:13px; font-family:Arial, sans-serif;"
-            >
+            <button type="button" onclick="selectBlock('sig-block','copy-toast')"
+                style="background:#153e36; color:#fff; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">
                 Selecionar assinatura
             </button>
         </div>
 
-        <div
-            id="copy-toast"
-            style="
-                display:none;
-                position:fixed;
-                top:14px;
-                right:14px;
-                z-index:9999;
-                background:#153e36;
-                color:#ffffff;
-                border-radius:10px;
-                padding:10px 12px;
-                box-shadow:0 8px 20px rgba(0,0,0,0.18);
-                font-size:12px;
-                font-family:Arial, sans-serif;
-            "
-        >
-            Assinatura selecionada. Agora copie o conteúdo.
-        </div>
-
-        <div id="signature-selection-block" style="max-width:100%;">
+        <div id="sig-block">
+            <div style="margin-bottom:2px; font-size:16px; font-weight:700; font-family:Arial,sans-serif; color:#153e36; line-height:1.2;">{nome}</div>
+            <div style="margin-bottom:2px; font-size:13px; font-weight:400; font-family:Arial,sans-serif; color:#153e36; line-height:1.2;">{cargo}</div>
+            {tel_html}
+            <div style="margin-bottom:8px; font-size:12px; font-weight:400; font-family:Arial,sans-serif; color:#153e36; line-height:1.2;">{ADDRESS}</div>
             <img src="data:image/png;base64,{img_b64}" style="width:{logical_w}px; max-width:100%; display:block;" />
             {disclaimer_section}
         </div>
 
         <script>
-            let toastTimer = null;
-
-            function showCopyToast() {{
-                const toast = document.getElementById('copy-toast');
-                if (!toast) return;
-
-                toast.style.display = 'block';
-                if (toastTimer) clearTimeout(toastTimer);
-                toastTimer = setTimeout(() => {{
-                    toast.style.display = 'none';
-                }}, 5000);
-            }}
-
-            function selectSignatureContent() {{
-                const el = document.getElementById('signature-selection-block');
+            const _timers = {{}};
+            function selectBlock(blockId, toastId) {{
+                const el = document.getElementById(blockId);
                 if (!el) return;
-
-                const selection = window.getSelection();
+                const sel = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(el);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                showCopyToast();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                const toast = document.getElementById(toastId);
+                if (!toast) return;
+                toast.style.display = 'block';
+                if (_timers[toastId]) clearTimeout(_timers[toastId]);
+                _timers[toastId] = setTimeout(() => {{ toast.style.display = 'none'; }}, 5000);
             }}
         </script>
         """
